@@ -675,6 +675,18 @@ func _on_stat_minus(stat: String) -> void:
 	_refresh_stats()
 
 func _on_confirm() -> void:
+	var rb: Dictionary = RACES[selected_race].get("bonuses", {})
+	var cb: Dictionary = CLASSES[selected_class].get("bonuses", {})
+	var fs: Dictionary = {}
+	for s: String in STATS:
+		fs[s] = base_stats[s] + rb.get(s, 0) + cb.get(s, 0)
+	var entered_name := name_input.text.strip_edges()
+	GameData.player_name     = entered_name if entered_name != "" else "Adventurer"
+	GameData.player_race     = selected_race
+	GameData.player_class    = selected_class
+	GameData.player_divinity = selected_divinity
+	GameData.player_portrait = selected_portrait
+	GameData.final_stats     = fs
 	get_tree().change_scene_to_file("res://scenes/MainGame.tscn")
 
 # ============================================================
