@@ -18,8 +18,6 @@ const ZONES: Dictionary = {
 	0: {
 		"name":      "Ashenveil Tavern",
 		"art_color": Color(0.28, 0.17, 0.06),
-		"art_file":  "res://assets/zones/ashenveil_tavern.png",
-		"music":     "res://assets/music/ashenveil_tavern.ogg",
 		"desc": [
 			"The [color=#d4a84b]Ember & Flagon[/color] smells of woodsmoke and cheap ale.",
 			"Grizzled locals drink in silence around battered oak tables.",
@@ -31,8 +29,6 @@ const ZONES: Dictionary = {
 	1: {
 		"name":      "Tavern Basement",
 		"art_color": Color(0.09, 0.07, 0.05),
-		"art_file":  "res://assets/zones/tavern_basement.png",
-		"music":     "res://assets/music/tavern_basement.ogg",
 		"desc": [
 			"Stone steps descend into a [color=#888888]cold, musty cellar[/color].",
 			"Barrels and crates line the damp walls. A torch sputters on an iron hook.",
@@ -71,18 +67,17 @@ var quest_completed: bool   = false
 var quest_rats_killed: int  = 0
 var rats_alive: Array[bool] = [true, true, true]
 
-# ── Timers ───────────────────────────────────────────────────────
+# ── Timers & Audio ───────────────────────────────────────────────
 var stamina_timer: Timer
 var enemy_timer:   Timer
+var music_player:  AudioStreamPlayer
 
 # ── UI refs ──────────────────────────────────────────────────────
-var zone_name_lbl:        Label
-var zone_art_rect:        ColorRect
-var zone_art_tex:         TextureRect
-var zone_art_placeholder: Label
-var game_log:             RichTextLabel
-var action_container:     VBoxContainer
-var music_player:         AudioStreamPlayer
+var zone_name_lbl:    Label
+var zone_art_rect:    ColorRect
+var zone_art_texture: TextureRect
+var game_log:         RichTextLabel
+var action_container: VBoxContainer
 
 var hp_bar:       ProgressBar
 var mp_bar:       ProgressBar
@@ -216,35 +211,26 @@ func _build_center_panel() -> Control:
 	nm_margin.add_child(zone_name_lbl)
 	vbox.add_child(name_pc)
 
-	# Zone art
+	# Zone art area
 	var art_wrap := Control.new()
 	art_wrap.custom_minimum_size   = Vector2(0, 155)
 	art_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	art_wrap.clip_contents         = true
 	vbox.add_child(art_wrap)
 
-	# Solid color background — always visible, acts as letterbox / fallback
+	# Background color fallback
 	zone_art_rect = ColorRect.new()
 	zone_art_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	zone_art_rect.color = ZONES[0]["art_color"]
 	art_wrap.add_child(zone_art_rect)
 
-	# Real zone image — shown when the file exists
-	zone_art_tex = TextureRect.new()
-	zone_art_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	zone_art_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	zone_art_tex.visible      = false
-	art_wrap.add_child(zone_art_tex)
-
-	# Placeholder text — hidden once real art loads
-	zone_art_placeholder = Label.new()
-	zone_art_placeholder.text = "[ Zone Art — Placeholder ]"
-	zone_art_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	zone_art_placeholder.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	zone_art_placeholder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	zone_art_placeholder.add_theme_font_size_override("font_size", 11)
-	zone_art_placeholder.add_theme_color_override("font_color", Color(0.32, 0.25, 0.12))
-	art_wrap.add_child(zone_art_placeholder)
+	# Zone art texture (loaded dynamically)
+	zone_art_texture = TextureRect.new()
+	zone_art_texture.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	zone_art_texture.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	zone_art_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	zone_art_texture.visible = false
+	art_wrap.add_child(zone_art_texture)
 
 	# Game log
 	var log_pc := _make_panel(Color(0.055, 0.045, 0.035), Color(0.18, 0.14, 0.07))
@@ -259,9 +245,9 @@ func _build_center_panel() -> Control:
 	log_pc.add_child(scroll)
 
 	game_log = RichTextLabel.new()
-	game_log.bbcode_enabled       = true
-	game_log.fit_content          = true
-	game_log.scroll_following     = true
+	game_log.bbcode_enabled        = true
+	game_log.fit_content           = true
+	game_log.scroll_following      = true
 	game_log.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	game_log.add_theme_font_size_override("normal_font_size", 12)
 	game_log.add_theme_color_override("default_color", Color(0.82, 0.78, 0.65))
@@ -477,41 +463,7 @@ func _action_btn(label: String, color: Color, cb: Callable) -> Button:
 
 
 # ================================================================
-# ASSET LOADING
-# ================================================================
-
-func _setup_music() -> void:
-	music_player = AudioStreamPlayer.new()
-	music_player.volume_db = -8.0
-	add_child(music_player)
-
-
-func _load_zone_art(zone_id: int) -> void:
-	var path: String = ZONES[zone_id].get("art_file", "")
-	if path != "" and ResourceLoader.exists(path):
-		var tex := load(path) as Texture2D
-		if tex:
-			zone_art_tex.texture     = tex
-			zone_art_tex.visible     = true
-			zone_art_placeholder.visible = false
-			return
-	zone_art_tex.visible         = false
-	zone_art_placeholder.visible = true
-
-
-func _play_zone_music(zone_id: int) -> void:
-	var path: String = ZONES[zone_id].get("music", "")
-	if path != "" and ResourceLoader.exists(path):
-		var stream := load(path) as AudioStream
-		if stream and music_player.stream != stream:
-			music_player.stream = stream
-			music_player.play()
-	else:
-		music_player.stop()
-
-
-# ================================================================
-# TIMERS
+# TIMERS & MUSIC
 # ================================================================
 
 func _setup_timers() -> void:
@@ -528,6 +480,48 @@ func _setup_timers() -> void:
 	add_child(enemy_timer)
 
 
+func _setup_music() -> void:
+	music_player = AudioStreamPlayer.new()
+	music_player.bus = "Master"
+	add_child(music_player)
+
+
+func _load_zone_art(zone_id: int) -> void:
+	var zone_name := ""
+	match zone_id:
+		ZONE_TAVERN:   zone_name = "ashenveil_tavern"
+		ZONE_BASEMENT: zone_name = "tavern_basement"
+
+	for ext: String in [".jpg", ".png", ".jpeg"]:
+		var path := "res://assets/zones/%s%s" % [zone_name, ext]
+		if ResourceLoader.exists(path):
+			var texture := load(path) as Texture2D
+			if texture:
+				zone_art_texture.texture = texture
+				zone_art_texture.visible = true
+				return
+
+	zone_art_texture.visible = false
+
+
+func _play_zone_music(zone_id: int) -> void:
+	var zone_name := ""
+	match zone_id:
+		ZONE_TAVERN:   zone_name = "ashenveil_tavern"
+		ZONE_BASEMENT: zone_name = "tavern_basement"
+
+	for ext: String in [".wav", ".ogg", ".mp3"]:
+		var path := "res://assets/music/%s%s" % [zone_name, ext]
+		if ResourceLoader.exists(path):
+			var stream := load(path) as AudioStream
+			if stream:
+				music_player.stream = stream
+				music_player.play()
+				return
+
+	music_player.stop()
+
+
 # ================================================================
 # ZONE MANAGEMENT
 # ================================================================
@@ -538,6 +532,7 @@ func _enter_zone(zone_id: int, _first: bool = false) -> void:
 
 	zone_name_lbl.text  = z["name"]
 	zone_art_rect.color = z["art_color"]
+
 	_load_zone_art(zone_id)
 	_play_zone_music(zone_id)
 
