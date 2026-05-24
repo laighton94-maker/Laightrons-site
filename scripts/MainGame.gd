@@ -734,7 +734,7 @@ func _refresh_actions() -> void:
 	_add_action("Search Area", Color(0.58, 0.76, 0.58), _do_search)
 
 	for dir: String in z["exits"]:
-		var d := dir
+		var d: String = dir
 		_add_action("Go " + d.capitalize(), Color(0.52, 0.80, 0.52), func() -> void: _do_go(d))
 
 	if "Innkeeper Bram" in (z["npcs"] as Array):

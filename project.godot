@@ -20,6 +20,10 @@ window/size/viewport_width=1024
 window/size/viewport_height=720
 window/size/resizable=false
 
+[autoload]
+
+GameData="*res://scripts/GameData.gd"
+
 [rendering]
 
 renderer/rendering_method="forward_plus"
