@@ -18,6 +18,8 @@ const ZONES: Dictionary = {
 	0: {
 		"name":      "Ashenveil Tavern",
 		"art_color": Color(0.28, 0.17, 0.06),
+		"art_file":  "res://assets/zones/ashenveil_tavern.png",
+		"music":     "res://assets/music/ashenveil_tavern.ogg",
 		"desc": [
 			"The [color=#d4a84b]Ember & Flagon[/color] smells of woodsmoke and cheap ale.",
 			"Grizzled locals drink in silence around battered oak tables.",
@@ -29,6 +31,8 @@ const ZONES: Dictionary = {
 	1: {
 		"name":      "Tavern Basement",
 		"art_color": Color(0.09, 0.07, 0.05),
+		"art_file":  "res://assets/zones/tavern_basement.png",
+		"music":     "res://assets/music/tavern_basement.ogg",
 		"desc": [
 			"Stone steps descend into a [color=#888888]cold, musty cellar[/color].",
 			"Barrels and crates line the damp walls. A torch sputters on an iron hook.",
@@ -72,10 +76,13 @@ var stamina_timer: Timer
 var enemy_timer:   Timer
 
 # ── UI refs ──────────────────────────────────────────────────────
-var zone_name_lbl:    Label
-var zone_art_rect:    ColorRect
-var game_log:         RichTextLabel
-var action_container: VBoxContainer
+var zone_name_lbl:        Label
+var zone_art_rect:        ColorRect
+var zone_art_tex:         TextureRect
+var zone_art_placeholder: Label
+var game_log:             RichTextLabel
+var action_container:     VBoxContainer
+var music_player:         AudioStreamPlayer
 
 var hp_bar:       ProgressBar
 var mp_bar:       ProgressBar
@@ -100,6 +107,7 @@ func _ready() -> void:
 	_init_player()
 	_build_ui()
 	_setup_timers()
+	_setup_music()
 	_enter_zone(ZONE_TAVERN, true)
 
 
@@ -208,26 +216,35 @@ func _build_center_panel() -> Control:
 	nm_margin.add_child(zone_name_lbl)
 	vbox.add_child(name_pc)
 
-	# Zone art placeholder
+	# Zone art
 	var art_wrap := Control.new()
 	art_wrap.custom_minimum_size   = Vector2(0, 155)
 	art_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	art_wrap.clip_contents         = true
 	vbox.add_child(art_wrap)
 
+	# Solid color background — always visible, acts as letterbox / fallback
 	zone_art_rect = ColorRect.new()
 	zone_art_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	zone_art_rect.color = ZONES[0]["art_color"]
 	art_wrap.add_child(zone_art_rect)
 
-	var art_lbl := Label.new()
-	art_lbl.text = "[ Zone Art — Placeholder ]"
-	art_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	art_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	art_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	art_lbl.add_theme_font_size_override("font_size", 11)
-	art_lbl.add_theme_color_override("font_color", Color(0.32, 0.25, 0.12))
-	art_wrap.add_child(art_lbl)
+	# Real zone image — shown when the file exists
+	zone_art_tex = TextureRect.new()
+	zone_art_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	zone_art_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	zone_art_tex.visible      = false
+	art_wrap.add_child(zone_art_tex)
+
+	# Placeholder text — hidden once real art loads
+	zone_art_placeholder = Label.new()
+	zone_art_placeholder.text = "[ Zone Art — Placeholder ]"
+	zone_art_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	zone_art_placeholder.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	zone_art_placeholder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	zone_art_placeholder.add_theme_font_size_override("font_size", 11)
+	zone_art_placeholder.add_theme_color_override("font_color", Color(0.32, 0.25, 0.12))
+	art_wrap.add_child(zone_art_placeholder)
 
 	# Game log
 	var log_pc := _make_panel(Color(0.055, 0.045, 0.035), Color(0.18, 0.14, 0.07))
@@ -460,6 +477,40 @@ func _action_btn(label: String, color: Color, cb: Callable) -> Button:
 
 
 # ================================================================
+# ASSET LOADING
+# ================================================================
+
+func _setup_music() -> void:
+	music_player = AudioStreamPlayer.new()
+	music_player.volume_db = -8.0
+	add_child(music_player)
+
+
+func _load_zone_art(zone_id: int) -> void:
+	var path: String = ZONES[zone_id].get("art_file", "")
+	if path != "" and ResourceLoader.exists(path):
+		var tex := load(path) as Texture2D
+		if tex:
+			zone_art_tex.texture     = tex
+			zone_art_tex.visible     = true
+			zone_art_placeholder.visible = false
+			return
+	zone_art_tex.visible         = false
+	zone_art_placeholder.visible = true
+
+
+func _play_zone_music(zone_id: int) -> void:
+	var path: String = ZONES[zone_id].get("music", "")
+	if path != "" and ResourceLoader.exists(path):
+		var stream := load(path) as AudioStream
+		if stream and music_player.stream != stream:
+			music_player.stream = stream
+			music_player.play()
+	else:
+		music_player.stop()
+
+
+# ================================================================
 # TIMERS
 # ================================================================
 
@@ -487,6 +538,8 @@ func _enter_zone(zone_id: int, _first: bool = false) -> void:
 
 	zone_name_lbl.text  = z["name"]
 	zone_art_rect.color = z["art_color"]
+	_load_zone_art(zone_id)
+	_play_zone_music(zone_id)
 
 	_refresh_actions()
 	_log_sep()
