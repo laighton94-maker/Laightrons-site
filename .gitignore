@@ -1,0 +1,10 @@
+# Godot 4 editor files
+.godot/
+*.uid
+
+# Export templates
+export_presets.cfg
+
+# OS files
+.DS_Store
+Thumbs.db
